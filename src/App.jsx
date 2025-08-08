@@ -25,7 +25,6 @@ const DUMMY_STUDENTS = [
   { id: 20, student_name: "Tanvi Choudhary", age: 25, class_name: "Science", instructor_name: "Prof. Raghavan", meetings: 5 }
 ];
 
-
 const ATTENDANCE_STATUSES = ['Present', 'Absent', 'Late'];
 const CLASSES = ['Math', 'Science', 'English'];
 const INSTRUCTORS = ['Dr. Smith', 'Prof. Anderson', 'Ms. Davis'];
@@ -55,21 +54,18 @@ const isToday = (date) => {
 const scheduleMeetings = (selectedDates, students) => {
   if (selectedDates.length === 0) return {};
   
-  // Sort students by number of meetings (descending) for priority scheduling
   const sortedStudents = [...students].sort((a, b) => b.meetings - a.meetings);
   
   const meetings = {};
   let studentIndex = 0;
   const totalSelectedDates = selectedDates.length;
   
-  // Calculate meetings per day based on total students and selected dates
   const totalStudents = students.length;
   const meetingsPerDay = Math.ceil(totalStudents / totalSelectedDates);
   
   selectedDates.forEach((dateStr) => {
     meetings[dateStr] = [];
     
-    // Assign meetings for this date
     for (let i = 0; i < meetingsPerDay && studentIndex < sortedStudents.length; i++) {
       const student = sortedStudents[studentIndex];
       const meetingId = `${dateStr}-${student.id}`;
@@ -94,41 +90,39 @@ const getRandomAttendance = () => {
   return ATTENDANCE_STATUSES[Math.floor(Math.random() * ATTENDANCE_STATUSES.length)];
 };
 
-// Excel export function
-const exportToExcel = (meetings, summary) => {
+// Updated Excel export function with specific columns
+const exportToExcel = (meetings) => {
   const wb = XLSX.utils.book_new();
   
-  // Create Overview Sheet
-  const overviewData = [
-    ['Date', 'Total Meetings', 'Present', 'Absent', 'Late', 'Math', 'Science', 'English', 'Dr. Smith', 'Prof. Anderson', 'Ms. Davis'],
-    ...Object.entries(summary.dateSummary).map(([date, data]) => [
-      date,
-      data.total,
-      data.present,
-      data.absent,
-      data.late,
-      data.classes.Math || 0,
-      data.classes.Science || 0,
-      data.classes.English || 0,
-      data.instructors['Dr. Smith'] || 0,
-      data.instructors['Prof. Anderson'] || 0,
-      data.instructors['Ms. Davis'] || 0
-    ])
+  // Create All Meetings Sheet with specific columns
+  const allMeetingsData = [
+    ['Student Name', 'Class', 'Age', 'Meeting Link', 'Attendance']
   ];
   
-  const overviewWS = XLSX.utils.aoa_to_sheet(overviewData);
-  XLSX.utils.book_append_sheet(wb, overviewWS, 'Overview');
+  // Collect all meetings from all dates
+  Object.entries(meetings).forEach(([date, dayMeetings]) => {
+    dayMeetings.forEach(meeting => {
+      allMeetingsData.push([
+        meeting.student.student_name,
+        meeting.student.class_name,
+        meeting.student.age,
+        meeting.meetingLink,
+        meeting.attendance
+      ]);
+    });
+  });
   
-  // Create Date-wise Sheets
+  const allMeetingsWS = XLSX.utils.aoa_to_sheet(allMeetingsData);
+  XLSX.utils.book_append_sheet(wb, allMeetingsWS, 'All Meetings');
+  
+  // Create separate sheets for each date
   Object.entries(meetings).forEach(([date, dayMeetings]) => {
     const dateData = [
-      ['Student Name', 'Age', 'Class Name', 'Instructor Name', 'Required Meetings', 'Meeting Link', 'Attendance'],
+      ['Student Name', 'Class', 'Age', 'Meeting Link', 'Attendance'],
       ...dayMeetings.map(meeting => [
         meeting.student.student_name,
-        meeting.student.age,
         meeting.student.class_name,
-        meeting.student.instructor_name,
-        meeting.student.meetings,
+        meeting.student.age,
         meeting.meetingLink,
         meeting.attendance
       ])
@@ -138,7 +132,7 @@ const exportToExcel = (meetings, summary) => {
     XLSX.utils.book_append_sheet(wb, dateWS, date);
   });
   
-  XLSX.writeFile(wb, 'meeting-schedule.xlsx');
+  XLSX.writeFile(wb, 'student-meetings-export.xlsx');
 };
 
 // State management
@@ -193,22 +187,18 @@ const CalendarView = ({ state, dispatch }) => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="text-center">
         <h2 className="text-2xl font-bold text-gray-800 mb-2">Select Meeting Dates</h2>
         <p className="text-gray-600">Click on dates to select them for scheduling meetings</p>
       </div>
       
-      {/* Calendar Grid */}
       <div className="grid grid-cols-7 gap-2 max-w-4xl mx-auto">
-        {/* Day Headers */}
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
           <div key={day} className="text-center font-semibold text-gray-700 py-2">
             {day}
           </div>
         ))}
         
-        {/* Calendar Days */}
         {calendarDays.map((date, index) => {
           const dateStr = formatDate(date);
           const isSelected = state.selectedDates.includes(dateStr);
@@ -236,7 +226,6 @@ const CalendarView = ({ state, dispatch }) => {
         })}
       </div>
       
-      {/* Action Section */}
       <div className="text-center space-y-4">
         <p className="text-sm text-gray-600">
           Selected Dates: {state.selectedDates.length}
@@ -261,7 +250,7 @@ const OverviewPage = ({ state, dispatch, summary }) => {
   const { meetings } = state;
 
   const handleExportToExcel = () => {
-    exportToExcel(meetings, summary);
+    exportToExcel(meetings);
   };
 
   const updateAttendance = (date, meetingId, status) => {
@@ -299,7 +288,6 @@ const OverviewPage = ({ state, dispatch, summary }) => {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="text-center">
         <h2 className="text-3xl font-bold text-gray-800 mb-2">Meeting Schedule Overview</h2>
         <p className="text-gray-600">Comprehensive view of all scheduled meetings</p>
@@ -362,53 +350,26 @@ const OverviewPage = ({ state, dispatch, summary }) => {
         </div>
       </div>
 
-      {/* Class & Instructor Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Class Distribution */}
-        <div className="bg-white p-6 rounded-xl shadow-lg">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <BookOpen size={24} />
-            Class Distribution
-          </h3>
-          <div className="space-y-3">
-            {Object.entries(summary.classSummary).map(([className, count]) => (
-              <div key={className} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                <span className="font-medium text-gray-700">{className}</span>
-                <span className="text-2xl font-bold text-gray-800">{count}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Instructor Distribution */}
-        <div className="bg-white p-6 rounded-xl shadow-lg">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <GraduationCap size={24} />
-            Instructor Distribution
-          </h3>
-          <div className="space-y-3">
-            {Object.entries(summary.instructorSummary).map(([instructorName, count]) => (
-              <div key={instructorName} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                <span className="font-medium text-gray-700">{instructorName}</span>
-                <span className="text-2xl font-bold text-gray-800">{count}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Daily Breakdown */}
-      <div className="space-y-6">
+      {/* Export Section */}
+      <div className="bg-white p-6 rounded-xl shadow-lg">
         <div className="flex justify-between items-center">
-          <h3 className="text-xl font-semibold text-gray-800">Daily Schedule</h3>
+          <div>
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">Export Data</h3>
+            <p className="text-gray-600">Export meeting data with Student Name, Class, Age, Meeting Link, and Attendance</p>
+          </div>
           <button
             onClick={handleExportToExcel}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors"
+            className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-colors"
           >
             <FileSpreadsheet size={20} />
             Export to Excel
           </button>
         </div>
+      </div>
+
+      {/* Daily Breakdown */}
+      <div className="space-y-6">
+        <h3 className="text-xl font-semibold text-gray-800">Daily Schedule</h3>
 
         {Object.entries(meetings).map(([date, dayMeetings]) => (
           <div key={date} className="bg-white p-6 rounded-xl shadow-lg">
@@ -433,10 +394,8 @@ const OverviewPage = ({ state, dispatch, summary }) => {
                 <thead>
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-2 px-3 font-medium text-gray-700">Student Name</th>
+                    <th className="text-left py-2 px-3 font-medium text-gray-700">Class</th>
                     <th className="text-left py-2 px-3 font-medium text-gray-700">Age</th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-700">Class Name</th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-700">Instructor Name</th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-700">Required Meetings</th>
                     <th className="text-left py-2 px-3 font-medium text-gray-700">Meeting Link</th>
                     <th className="text-left py-2 px-3 font-medium text-gray-700">Attendance</th>
                   </tr>
@@ -447,32 +406,24 @@ const OverviewPage = ({ state, dispatch, summary }) => {
                       <td className="py-3 px-3 font-medium text-gray-800">
                         {meeting.student.student_name}
                       </td>
+                      <td className="py-3 px-3">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getClassBadgeStyle(meeting.student.class_name)}`}>
+                          {meeting.student.class_name}
+                        </span>
+                      </td>
                       <td className="py-3 px-3 text-center">
                         <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs font-medium">
                           {meeting.student.age}
                         </span>
                       </td>
                       <td className="py-3 px-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getClassBadgeStyle(meeting.student.class_name)}`}>
-                          {meeting.student.class_name}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-gray-600">
-                        {meeting.student.instructor_name}
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
-                          {meeting.student.meetings}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3">
                         <a
                           href={meeting.meetingLink}
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium underline"
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          Join Meeting
+                          {meeting.meetingLink}
                         </a>
                       </td>
                       <td className="py-3 px-3">
@@ -521,7 +472,6 @@ const useScheduler = () => {
         const className = meeting.student.class_name;
         const instructorName = meeting.student.instructor_name;
         
-        // Class summary
         if (!classSummary[className]) {
           classSummary[className] = 0;
         }
@@ -532,7 +482,6 @@ const useScheduler = () => {
         }
         dateSummary[date].classes[className]++;
         
-        // Instructor summary
         if (!instructorSummary[instructorName]) {
           instructorSummary[instructorName] = 0;
         }
@@ -558,16 +507,14 @@ const MeetingScheduler = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       <div className="container mx-auto px-4 py-8">
-        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-800 mb-2 flex items-center justify-center gap-3">
             <Calendar className="text-blue-600" size={40} />
-            Dynamic Class Meeting Scheduler
+            Student Meeting Scheduler
           </h1>
-          <p className="text-gray-600 text-lg">Schedule and manage student meetings with intelligent prioritization</p>
+          <p className="text-gray-600 text-lg">Schedule meetings and export with custom format</p>
         </div>
 
-        {/* Navigation */}
         <div className="flex justify-center mb-8">
           <div className="bg-white p-1 rounded-xl shadow-lg">
             <button
@@ -598,7 +545,6 @@ const MeetingScheduler = () => {
           </div>
         </div>
 
-        {/* Main Content */}
         <div className="max-w-7xl mx-auto">
           {state.currentView === 'calendar' ? (
             <CalendarView state={state} dispatch={dispatch} />
@@ -607,9 +553,8 @@ const MeetingScheduler = () => {
           )}
         </div>
 
-        {/* Footer */}
         <div className="text-center mt-12 text-gray-500 text-sm">
-          <p>Built with React.js • Priority scheduling based on required meetings • Excel export with SheetJS</p>
+          <p>Excel export format: Student Name | Class | Age | Meeting Link | Attendance</p>
         </div>
       </div>
     </div>
